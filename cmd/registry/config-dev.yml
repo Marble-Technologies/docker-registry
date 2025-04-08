@@ -1,30 +1,23 @@
 version: 0.1
 log:
-  level: debug
+  level: error
+  accesslog:
+    disabled: true
   fields:
-    service: registry
-    environment: development
+    service: docker-registry
 storage:
-    delete:
-      enabled: true
-    cache:
-        blobdescriptor: inmemory
-    filesystem:
-        rootdirectory: /var/lib/registry
-    maintenance:
-        uploadpurging:
-            enabled: false
-    tag:
-      concurrencylimit: 8
+  filesystem:
+    rootdirectory: /var/lib/registry
 http:
-    addr: :5000
-    debug:
-        addr: :5001
-        prometheus:
-            enabled: true
-            path: /metrics
-    headers:
-        X-Content-Type-Options: [nosniff]
+  addr: :5000
+  headers:
+    X-Content-Type-Options: [nosniff]
+middleware:
+  storage:
+    - name: ecr
+      options:
+        local: docker-registry.service.consul:5000
+        remote: 123456789012.dkr.ecr.us-east-1.amazonaws.com
 health:
   storagedriver:
     enabled: true
