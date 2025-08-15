@@ -1,0 +1,48 @@
+version: 0.1
+log:
+  level: info
+  fields:
+    service: registry
+    environment: production
+storage:
+  # cache:
+  # blobdescriptor: redis
+  filesystem:
+    rootdirectory: /var/lib/registry-cache
+  maintenance:
+    uploadpurging:
+      enabled: false
+  tag:
+    concurrencylimit: 8
+http:
+  addr: :5005
+  # secret: asecretforlocaldevelopment
+  # debug:
+  #   addr: localhost:5001
+  headers:
+    X-Content-Type-Options: [nosniff]
+# redis:
+#   addrs: [localhost:6379]
+#   maxidleconns: 16
+#   poolsize: 64
+#   connmaxidletime: 300s
+#   dialtimeout: 10ms
+#   readtimeout: 10ms
+#   writetimeout: 10ms
+# ECR Pull-through cache configuration
+proxy:
+  remoteurl: https://123456789012.dkr.ecr.us-east-1.amazonaws.com
+  # ecr:
+    # # AWS credentials (optional)
+    # accesskeyid:
+    # secretaccesskey:
+    # region: us-east-1
+    # accountid: 123456789012
+    # # Token refresh settings
+    # lifetime: 1h  # Refresh tokens every hour (optional)
+  ttl: 168h  # Cache images for 7 days
+health:
+  storagedriver:
+    enabled: true
+    interval: 10s
+    threshold: 3
