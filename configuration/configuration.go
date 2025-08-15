@@ -688,6 +688,10 @@ type Proxy struct {
 	// If set, Username and Password are ignored.
 	Exec *ExecConfig `yaml:"exec,omitempty"`
 
+	// ECR specifies configuration for AWS ECR authentication.
+	// If set, Username, Password, and Exec are ignored.
+	ECR *ECRConfig `yaml:"ecr,omitempty"`
+
 	// TTL is the expiry time of the content and will be cleaned up when it expires
 	// if not set, defaults to 7 * 24 hours
 	// If set to zero, will never expire cache
@@ -708,6 +712,41 @@ type ExecConfig struct {
 	// the command will be re-executed to retrieve new credentials.
 	// If set to zero, the command will be executed for every request.
 	// If not set, the command will only be executed once.
+	Lifetime *time.Duration `yaml:"lifetime,omitempty"`
+}
+
+// ECRConfig defines the configuration for AWS ECR authentication.
+// This allows the registry to authenticate against AWS ECR by using AWS credentials
+// to obtain temporary Basic authentication tokens that are automatically refreshed.
+type ECRConfig struct {
+	// AccountID is the AWS account ID that owns the ECR registry.
+	// If empty, it will be derived from the RemoteURL.
+	AccountID string `yaml:"accountid,omitempty"`
+
+	// Region is the AWS region where the ECR registry is located.
+	// If empty, it will be derived from the RemoteURL or default to us-east-1.
+	Region string `yaml:"region,omitempty"`
+
+	// AccessKeyID is the AWS access key ID for authentication.
+	// If empty, will use AWS credential chain (env vars, IAM roles, etc.).
+	AccessKeyID string `yaml:"accesskeyid,omitempty"`
+
+	// SecretAccessKey is the AWS secret access key for authentication.
+	// If empty, will use AWS credential chain (env vars, IAM roles, etc.).
+	SecretAccessKey string `yaml:"secretaccesskey,omitempty"`
+
+	// SessionToken is the AWS session token for temporary credentials.
+	// If empty, will use AWS credential chain (env vars, IAM roles, etc.).
+	SessionToken string `yaml:"sessiontoken,omitempty"`
+
+	// Profile is the AWS credential profile to use.
+	// If empty, will use the default profile or AWS credential chain.
+	Profile string `yaml:"profile,omitempty"`
+
+	// Lifetime is the expiry period of the ECR token. ECR tokens are valid
+	// for 12 hours by default, but this setting allows for earlier refresh.
+	// If not set, tokens will be refreshed 1 hour before expiry.
+	// If set to zero, will refresh on every request.
 	Lifetime *time.Duration `yaml:"lifetime,omitempty"`
 }
 

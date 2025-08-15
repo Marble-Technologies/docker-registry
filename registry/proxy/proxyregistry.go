@@ -114,8 +114,18 @@ func NewRegistryPullThroughCache(ctx context.Context, registry distribution.Name
 		}
 	}
 
+	// Auto-detect ECR and configure if not explicitly set
+	if config.ECR == nil && config.Exec == nil && config.Username == "" && isECRURL(config.RemoteURL) {
+		// Auto-configure ECR with default settings
+		config.ECR = &configuration.ECRConfig{}
+		dcontext.GetLogger(ctx).Info("Auto-detected ECR registry, enabling ECR authentication")
+	}
+
 	cs, b, err := func() (auth.CredentialStore, auth.CredentialStore, error) {
 		switch {
+		case config.ECR != nil:
+			cs, err := configureECRAuth(*config.ECR, config.RemoteURL)
+			return cs, cs, err
 		case config.Exec != nil:
 			cs, err := configureExecAuth(*config.Exec)
 			return cs, cs, err
