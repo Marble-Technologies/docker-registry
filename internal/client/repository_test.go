@@ -440,7 +440,8 @@ func TestBlobUploadChunked(t *testing.T) {
 		b1[513:1024],
 	}
 	repo, _ := reference.WithName("test.example.com/uploadrepo")
-	uuids := []string{uuid.NewString()}
+	uuids := make([]string, 0, len(chunks)+1)
+	uuids = append(uuids, uuid.NewString())
 	m = append(m, testutil.RequestResponseMapping{
 		Request: testutil.Request{
 			Method: http.MethodPost,
@@ -918,7 +919,7 @@ func TestBlobMount(t *testing.T) {
 
 func newRandomOCIManifest(t *testing.T, blobCount int) (*ocischema.Manifest, digest.Digest, []byte) {
 	layers := make([]v1.Descriptor, blobCount)
-	for i := 0; i < blobCount; i++ {
+	for i := range blobCount {
 		dgst, blob := newRandomBlob((i % 5) * 16)
 		layers[i] = v1.Descriptor{
 			MediaType: v1.MediaTypeImageLayer,
@@ -1231,6 +1232,77 @@ func TestManifestFetchWithAccept(t *testing.T) {
 	}
 }
 
+func TestManifestsExistsAcceptRequired(t *testing.T) {
+	ctx := dcontext.Background()
+	repo, _ := reference.WithName("test.example.com/repo")
+	_, dgst, _ := newRandomOCIManifest(t, 1)
+
+	// Server returns 200 when an acceptable media type is present, 404 otherwise.
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		supported := map[string]struct{}{}
+		for _, mt := range distribution.ManifestMediaTypes() {
+			supported[mt] = struct{}{}
+		}
+		accepts := req.Header["Accept"]
+		var ok bool
+		for _, v := range accepts {
+			if _, exists := supported[v]; exists {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer s.Close()
+
+	// Case 1: normal repository should return true (Accept present) and send expected Accept values
+	r, err := NewRepository(repo, s.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms, err := r.Manifests(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := ms.Exists(ctx, dgst)
+	if err != nil || !got {
+		t.Fatalf("expected true with Accept, got (%v,%v)", got, err)
+	}
+
+	// Case 2: repository with stripping transport should return false (no Accept)
+	r2, err := NewRepository(repo, s.URL, strippingTransport{rt: http.DefaultTransport})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms2, err := r2.Manifests(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got2, err := ms2.Exists(ctx, dgst)
+	if err != nil {
+		t.Fatalf("unexpected error when Accept stripped: %v", err)
+	}
+	if got2 {
+		t.Fatal("expected false when Accept header is stripped")
+	}
+}
+
+type strippingTransport struct{ rt http.RoundTripper }
+
+func (s strippingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req2 := req.Clone(req.Context())
+	req2.Header.Del("Accept")
+	base := s.rt
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	return base.RoundTrip(req2)
+}
+
 func TestManifestDelete(t *testing.T) {
 	repo, _ := reference.WithName("test.example.com/repo/delete")
 	_, dgst1, _ := newRandomOCIManifest(t, 6)
@@ -1346,7 +1418,7 @@ func TestManifestTags(t *testing.T) {
 }
 	`))
 	var m testutil.RequestResponseMap
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		m = append(m, testutil.RequestResponseMapping{
 			Request: testutil.Request{
 				Method: http.MethodGet,
@@ -1509,8 +1581,8 @@ func TestManifestTagsPaginated(t *testing.T) {
 	repo, _ := reference.WithName("test.example.com/repo/tags/list")
 	tagsList := []string{"tag1", "tag2", "funtag"}
 	var m testutil.RequestResponseMap
-	for i := 0; i < 3; i++ {
-		body, err := json.Marshal(map[string]interface{}{
+	for i := range 3 {
+		body, err := json.Marshal(map[string]any{
 			"name": "test.example.com/repo/tags/list",
 			"tags": []string{tagsList[i]},
 		})
@@ -1729,7 +1801,7 @@ func TestSanitizeLocation(t *testing.T) {
 			expected:    "https://mwhahaha.com/v2/foo/baasdf?_state=asdfasfdasdfasdf",
 		},
 	} {
-		fatalf := func(format string, args ...interface{}) {
+		fatalf := func(format string, args ...any) {
 			t.Fatalf(testcase.description+": "+format, args...)
 		}
 

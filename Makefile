@@ -65,6 +65,9 @@ bin/%: cmd/% FORCE ## build individual binary
 binaries: $(BINARIES) ## build binaries
 	@echo "$(WHALE) $@"
 
+binaries-tar:
+	tar -czvf docker-registry_3.1.0-marble_linux_amd64.tar.gz $(BINARIES)/bin/*
+
 build: ## build go packages
 	@echo "$(WHALE) $@"
 	@go build -buildmode=pie ${GO_GCFLAGS} ${GO_BUILD_FLAGS} ${GO_LDFLAGS} --ldflags '-extldflags "-Wl,-z,now" -s' ${GO_TAGS} $(PACKAGES)
@@ -166,7 +169,7 @@ test-azure-storage: start-azure-storage run-azure-tests stop-azure-storage ## ru
 
 .PHONY: start-azure-storage
 start-azure-storage: ## start local Azure storage (Azurite)
-	$(COMPOSE) -f tests/docker-compose-azure-blob-store.yaml up azurite azurite-init -d
+	$(COMPOSE) -f tests/docker-compose-azure-blob-store.yaml up azurite azurite-init -d --wait
 
 .PHONY: stop-azure-storage
 stop-azure-storage: ## stop local Azure storage (minio)

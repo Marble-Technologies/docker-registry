@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,22 +30,23 @@ var (
 
 func init() {
 	var (
-		accessKey      = os.Getenv("AWS_ACCESS_KEY")
-		secretKey      = os.Getenv("AWS_SECRET_KEY")
-		bucket         = os.Getenv("S3_BUCKET")
-		encrypt        = os.Getenv("S3_ENCRYPT")
-		keyID          = os.Getenv("S3_KEY_ID")
-		secure         = os.Getenv("S3_SECURE")
-		skipVerify     = os.Getenv("S3_SKIP_VERIFY")
-		v4Auth         = os.Getenv("S3_V4_AUTH")
-		region         = os.Getenv("AWS_REGION")
-		objectACL      = os.Getenv("S3_OBJECT_ACL")
-		regionEndpoint = os.Getenv("REGION_ENDPOINT")
-		forcePathStyle = os.Getenv("AWS_S3_FORCE_PATH_STYLE")
-		sessionToken   = os.Getenv("AWS_SESSION_TOKEN")
-		useDualStack   = os.Getenv("S3_USE_DUALSTACK")
-		accelerate     = os.Getenv("S3_ACCELERATE")
-		logLevel       = os.Getenv("S3_LOGLEVEL")
+		accessKey       = os.Getenv("AWS_ACCESS_KEY")
+		secretKey       = os.Getenv("AWS_SECRET_KEY")
+		bucket          = os.Getenv("S3_BUCKET")
+		encrypt         = os.Getenv("S3_ENCRYPT")
+		keyID           = os.Getenv("S3_KEY_ID")
+		secure          = os.Getenv("S3_SECURE")
+		skipVerify      = os.Getenv("S3_SKIP_VERIFY")
+		v4Auth          = os.Getenv("S3_V4_AUTH")
+		region          = os.Getenv("AWS_REGION")
+		objectACL       = os.Getenv("S3_OBJECT_ACL")
+		regionEndpoint  = os.Getenv("REGION_ENDPOINT")
+		forcePathStyle  = os.Getenv("AWS_S3_FORCE_PATH_STYLE")
+		sessionToken    = os.Getenv("AWS_SESSION_TOKEN")
+		useDualStack    = os.Getenv("S3_USE_DUALSTACK")
+		accelerate      = os.Getenv("S3_ACCELERATE")
+		useFIPSEndpoint = os.Getenv("S3_USE_FIPS_ENDPOINT")
+		logLevel        = os.Getenv("S3_LOGLEVEL")
 	)
 
 	var err error
@@ -101,6 +103,14 @@ func init() {
 			}
 		}
 
+		useFIPSEndpointBool := false
+		if useFIPSEndpoint != "" {
+			useFIPSEndpointBool, err = strconv.ParseBool(useFIPSEndpoint)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		if objectACL == "" {
 			objectACL = s3.ObjectCannedACLPrivate
 		}
@@ -128,6 +138,7 @@ func init() {
 			SessionToken:                sessionToken,
 			UseDualStack:                useDualStackBool,
 			Accelerate:                  accelerateBool,
+			UseFIPSEndpoint:             useFIPSEndpointBool,
 			LogLevel:                    getS3LogLevelFromParam(logLevel),
 		}
 
@@ -339,7 +350,7 @@ func TestClientTransport(t *testing.T) {
 		// NOTE(milosgajdos): we cannot simply reuse s3DriverConstructor
 		// because s3DriverConstructor is initialized in init() using the process
 		// env vars: we can not override S3_SKIP_VERIFY env var with t.Setenv
-		params := map[string]interface{}{
+		params := map[string]any{
 			"region":     os.Getenv("AWS_REGION"),
 			"bucket":     os.Getenv("S3_BUCKET"),
 			"skipverify": tc.skipverify,
@@ -491,7 +502,7 @@ func TestDelete(t *testing.T) {
 		"/folder1-v2/subfolder1/file1",
 	}
 
-	tcs := []testCase{
+	tcs := []testCase{ //nolint:prealloc
 		{
 			name:   "delete folder1",
 			delete: "/folder1",
@@ -600,12 +611,7 @@ func TestDelete(t *testing.T) {
 			// and all files not marked for deletion still remain
 			expected := tc.expected
 			isExpected := func(path string) bool {
-				for _, epath := range expected {
-					if epath == path {
-						return true
-					}
-				}
-				return false
+				return slices.Contains(expected, path)
 			}
 			for _, path := range objs {
 				stat, err := drvr.Stat(dcontext.Background(), path)
@@ -966,7 +972,7 @@ func TestOverThousandBlobs(t *testing.T) {
 	}
 
 	ctx := dcontext.Background()
-	for i := 0; i < 1005; i++ {
+	for i := range 1005 {
 		filename := "/thousandfiletest/file" + strconv.Itoa(i)
 		contents := []byte("contents")
 		err = standardDriver.PutContent(ctx, filename, contents)
@@ -1045,8 +1051,8 @@ func TestListObjectsV2(t *testing.T) {
 	ctx := dcontext.Background()
 	n := 6
 	prefix := "/test-list-objects-v2"
-	var filePaths []string
-	for i := 0; i < n; i++ {
+	filePaths := make([]string, 0, n)
+	for i := range n {
 		filePaths = append(filePaths, fmt.Sprintf("%s/%d", prefix, i))
 	}
 	for _, p := range filePaths {
